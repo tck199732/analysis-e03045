@@ -33,3 +33,7 @@ Error in <TBasket::ReadBasketBuffers>: fNbytes = 15025, fKeylen = 93, fObjlen = 
 
 
 A list of corrupted files are written in **del.sh**.
+
+
+#### 3. d-alpha $M_{inv}$
+<img width=400 src="../analysis/d-alpha.png" />
