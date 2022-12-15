@@ -127,3 +127,17 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Conda environment
+env_e03045
+
+# cpp lib files
+*_rdict.pcm
+*.d
+*.so
+
+# root files
+*.root
+
+# vscode
+.vscode
