@@ -8,6 +8,7 @@ namespace fs = std::filesystem;
 #include <vector>
 #include <map>
 #include <array>
+#include <exception>
 
 #include "TChain.h"
 #include "TFile.h"
@@ -50,7 +51,7 @@ struct DataStructure
 };
 
 DataStructure event;
-HiRAEvent *hira_event = new HiRAEvent();
+HiRAEvent *hira_event; // = new HiRAEvent();
 
 TTree *get_tree(const std::string &tr_name = "HiRAEvent")
 {
@@ -180,28 +181,35 @@ TChain *input(const std::string &fname, const std::string &tr_name = "HiRAEvent"
     return chain;
 }
 
-void read()
+void read(const std::string &filename = "/data/chajecki/EXP_DATA/40Ca/40Ca_05.root", const std::string &outfile_name = "./test2.root")
 {
-    TChain *chain = input("/data/chajecki/EXP_DATA/40Ca/40Ca_00.root");
+    TChain *chain = input(filename);
     int nentries = chain->GetEntries();
-
-    TFile *outfile = new TFile("./output.root", "RECREATE");
+    TFile *outfile = new TFile(outfile_name.c_str(), "RECREATE");
     TTree *tree = get_tree();
+
+    int status = 0;
 
     for (int ievt = 0; ievt < nentries; ievt++)
     {
-        chain->GetEntry(ievt);
+        try
+        {
+            int bytes = chain->GetEntry(ievt);
+        }
+        catch (exception &e)
+        {
+            std::cerr << e.what() << std::endl;
+            status = 1;
+            break;
+        }
         fill_struct(hira_event);
-        // std::cout << "etrans : " << event.mEtrans << std::endl;
-        // for (auto &c : event.HiRA_A)
-        // {
-        //     if (c != 0)
-        //     {
-        //         std::cout << c << std::endl;
-        //     }
-        // }
         tree->Fill();
     }
+    if (status == 1)
+    {
+        return;
+    }
+
     outfile->cd();
     tree->Write();
     outfile->Write();
