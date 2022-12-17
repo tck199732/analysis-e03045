@@ -12,6 +12,7 @@ namespace fs = std::filesystem;
 #include "TTree.h"
 #include "TMath.h"
 #include "TH1D.h"
+#include "TH2D.h"
 
 struct DataStructure
 {
@@ -59,12 +60,19 @@ struct particle
 
     // additional calculations
     float mass;
-    float pt, plab, theta, phi, rapidity, rapidity_cms, pzcms, enlab_cms, pcms;
-
-    void init(const int &i, const double &betacms = 0.2);
+    float pt, plab, theta, phi, rapidity, rapidity_normed, rapidity_cms, pzcms, encms, pcms, thetacms;
+    std::string name;
+    void init(const int &i, const double &betacms = 0.2, const double &beam_rapdiity = 0.5);
 };
 
-void particle::init(const int &i, const double &betacms)
+struct event
+{
+    short mRunNumber, mEventNumber, m4PiMultInBall, m4PiMultInFA, m4PiMult, m4PiMultInHiRA;
+    float mEtrans;
+    std::vector<particle> particles;
+};
+
+void particle::init(const int &i, const double &betacms, const double &beam_rapidity)
 {
     // from data in root file
     this->z = structure.HiRA_Z[i];
@@ -101,13 +109,37 @@ void particle::init(const int &i, const double &betacms)
     }
 
     this->rapidity = 0.5 * TMath::Log((this->enlab + this->mass + this->pz) / (this->enlab + this->mass - this->pz));
+    this->rapidity_normed = this->rapidity / beam_rapidity;
 
     double gamma = 1. / TMath::Sqrt(1 - pow(betacms, 2.));
 
     this->pzcms = gamma * (this->pz - betacms * (this->enlab + this->mass));
     this->pcms = TMath::Sqrt(pow(this->pt, 2.) + pow(this->pzcms, 2.));
-    this->enlab_cms = TMath::Sqrt(pow(this->pcms, 2.) + pow(this->mass, 2.)) - this->mass;
-    this->rapidity_cms = 0.5 * TMath::Log((this->enlab_cms + this->mass + this->pzcms) / (this->enlab_cms + this->mass - this->pzcms));
+    this->encms = TMath::Sqrt(pow(this->pcms, 2.) + pow(this->mass, 2.)) - this->mass;
+    this->rapidity_cms = 0.5 * TMath::Log((this->encms + this->mass + this->pzcms) / (this->encms + this->mass - this->pzcms));
+    this->thetacms = TMath::ATan2(this->pt, this->pzcms) * TMath::RadToDeg();
+
+    this->name = "None";
+    if (this->z == 1 && this->a == 1)
+    {
+        this->name = "p";
+    }
+    else if (this->z == 1 && this->a == 2)
+    {
+        this->name = "d";
+    }
+    else if (this->z == 1 && this->a == 3)
+    {
+        this->name = "t";
+    }
+    else if (this->z == 2 && this->a == 3)
+    {
+        this->name = "3He";
+    }
+    else if (this->z == 2 && this->a == 4)
+    {
+        this->name = "4He";
+    }
 }
 
 struct Reaction
@@ -162,7 +194,7 @@ void files_manager::init(TChain *chain)
 {
     for (auto &folder : this->folders)
     {
-        fs::path folder_path = this->input_dir + folder;
+        fs::path folder_path = this->input_dir + "/" + folder;
         for (const auto &f : fs::directory_iterator{folder_path})
         {
             this->files[folder].push_back(f.path());
