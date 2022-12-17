@@ -14,7 +14,7 @@ output_directory.mkdir(exist_ok=True, parents=True)
 programs = dict()
 programs['main'] = {
     'ca40': ['Ca40', 'Ca40', '80', str(data_directory), str(pathlib.Path(output_directory, 'ca40.root')), '40Ca 40Ca_One'],
-    # 'ca48':  ['Ca48', 'Ca48', '80', str(data_directory), str(pathlib.Path(output_directory, 'ca40.root')), '48Ca 48Ca_One 48Ca_40t_One'],
+    'ca48':  ['Ca48', 'Ca48', '80', str(data_directory), str(pathlib.Path(output_directory, 'ca40.root')), '48Ca 48Ca_One 48Ca_40t_One'],
 }
 
 program_outputs = collections.defaultdict(dict)

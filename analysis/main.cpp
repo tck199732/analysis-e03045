@@ -106,8 +106,10 @@ void manager::read()
 void manager::init()
 {
     this->reaction = {this->beam, this->target, this->beamE};
+    this->reaction.init();
     this->betacms = this->reaction.betacms;
     this->beam_rapidity = this->reaction.beam_rapidity;
+    std::cout << this->betacms << "\t" << this->beam_rapidity << std::endl;
 
     this->chain = new TChain("HiRAEvent");
     files_manager fm = {this->input_dir, this->folders};
@@ -132,7 +134,7 @@ void histograms::init()
     for (auto &pn : this->particle_names)
     {
         this->h2_pt_rapidity[pn] = new TH2D(("h2_pt_rapidity_" + pn).c_str(), "", 100, 0., 1., 800, 0., 800);
-        this->h2_kinergy_theta[pn] = new TH2D(("h2_kinergy_theta_" + pn).c_str(), "", 350, 0., 350, 180, 0, 180);
+        this->h2_kinergy_theta[pn] = new TH2D(("h2_kinergy_theta_" + pn).c_str(), "", 200, 0., 200, 800, 10, 70);
         this->h2_pt_rapidity[pn]->Sumw2();
         this->h2_pt_rapidity[pn]->SetDirectory(0);
         this->h2_kinergy_theta[pn]->Sumw2();
