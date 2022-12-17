@@ -50,17 +50,23 @@ DataStructure structure;
 
 struct particle
 {
+    // data from root file
     int z, a, charge;
     short tele, csi, ef, eb;
     float px, py, pz;
     float pvx, pvy, pvz;
     float enlab, enlabsi, enlablise, enlabcsi, enlabplcalib, eninsi;
+
+    // additional calculations
     float mass;
-    void init(const int &i);
+    float pt, plab, theta, phi, rapidity, rapidity_cms, pzcms, enlab_cms, pcms;
+
+    void init(const int &i, const double &betacms = 0.2);
 };
 
-void particle::init(const int &i)
+void particle::init(const int &i, const double &betacms)
 {
+    // from data in root file
     this->z = structure.HiRA_Z[i];
     this->a = structure.HiRA_A[i];
     this->charge = structure.HiRA_Charge[i];
@@ -81,90 +87,153 @@ void particle::init(const int &i)
     this->enlabplcalib = structure.HiRA_EnLabPLCalib[i];
     this->eninsi = structure.HiRA_EnInSi[i];
 
+    // additional calculations
     this->mass = (pow(this->px, 2.) + pow(this->py, 2.) + pow(this->pz, 2.) - pow(this->enlab, 2.)) / 2. / this->enlab;
+
+    this->pt = TMath::Sqrt(pow(this->px, 2.) + pow(this->py, 2.));
+    this->plab = TMath::Sqrt(pow(this->pt, 2.) + pow(this->pz, 2.));
+
+    this->theta = TMath::ATan2(this->pt, this->pz) * TMath::RadToDeg();
+    this->phi = TMath::ATan2(this->py, this->px) * TMath::RadToDeg();
+    if (this->phi < 0)
+    {
+        this->phi += 360.;
+    }
+
+    this->rapidity = 0.5 * TMath::Log((this->enlab + this->mass + this->pz) / (this->enlab + this->mass - this->pz));
+
+    double gamma = 1. / TMath::Sqrt(1 - pow(betacms, 2.));
+
+    this->pzcms = gamma * (this->pz - betacms * (this->enlab + this->mass));
+    this->pcms = TMath::Sqrt(pow(this->pt, 2.) + pow(this->pzcms, 2.));
+    this->enlab_cms = TMath::Sqrt(pow(this->pcms, 2.) + pow(this->mass, 2.)) - this->mass;
+    this->rapidity_cms = 0.5 * TMath::Log((this->enlab_cms + this->mass + this->pzcms) / (this->enlab_cms + this->mass - this->pzcms));
 }
-struct event
-{
-    unsigned short mRunNumber, mEventNumber, m4PiMultInBall, m4PiMultInFA, m4PiMult, m4PiMultInHiRA;
-    float mEtrans;
-    std::vector<particle> particles;
-};
 
-struct eventcut
+struct Reaction
 {
-    std::array<float, 2> cut_etrans;
-    std::array<int, 2> m4PiMultInBall = {1, 100};
-    std::array<int, 2> m4PiMultInFA = {1, 100};
-    std::array<int, 2> m4PiMult = {1, 100};
-    std::array<int, 2> m4PiMultInHiRA = {1, 100};
-};
+    std::string beam, target;
+    int beamE;
 
-struct histograms
-{
-    TH1D *h1_dalpha_invaraiant_mass;
-    TH1D *h1_palpha_invaraiant_mass;
-    TH1D *h1_alphaalpha_invariant_mass;
+    std::vector<std::string> nuclei_names = {"Ca40", "Ca48", "Ni58", "Ni64", "Sn112", "Sn124"};
+    std::vector<double> nuclei_mass = {
+        37224.91769468577,
+        44667.49204802292,
+        53966.42906919436,
+        59548.52352069724,
+        104238.68442172016,
+        115417.03722472588,
+    };
+
+    float betacms, beam_rapidity;
     void init();
-    void fill(const particle &p1, const particle &p2);
-    void write(TFile *&outf);
 };
 
-void histograms::init()
+void Reaction::init()
 {
-    this->h1_dalpha_invaraiant_mass = new TH1D("h1_dalpha_invaraiant_mass", "", 300, -5., 25.);
-    this->h1_dalpha_invaraiant_mass->Sumw2();
-    this->h1_dalpha_invaraiant_mass->SetDirectory(0);
-
-    this->h1_palpha_invaraiant_mass = new TH1D("h1_palpha_invaraiant_mass", "", 300, -5., 25.);
-    this->h1_palpha_invaraiant_mass->Sumw2();
-    this->h1_palpha_invaraiant_mass->SetDirectory(0);
-
-    this->h1_alphaalpha_invaraiant_mass = new TH1D("h1_alphaalpha_invaraiant_mass", "", 300, -5., 25.);
-    this->h1_alphaalpha_invaraiant_mass->Sumw2();
-    this->h1_alphaalpha_invaraiant_mass->SetDirectory(0);
-}
-
-void histograms::fill(const particle &p1, const particle &p2)
-{
-    double px1 = p1.px;
-    double px2 = p2.px;
-    double py1 = p1.py;
-    double py2 = p2.py;
-    double pz1 = p1.pz;
-    double pz2 = p2.pz;
-
-    double m1 = p1.mass;
-    double m2 = p2.mass;
-    double e1 = m1 + p1.enlab;
-    double e2 = m2 + p2.enlab;
-
-    double p1p2 = px1 * px2 + py1 * py2 + pz1 * pz2;
-    double minv = pow(m1, 2.) + pow(m2, 2.) + 2 * (e1 * e2 - p1p2);
-
-    if ((par1.z == 1 && par1.a == 2 && par2.z == 2 && par2.a == 4) ||
-        (par2.z == 1 && par2.a == 2 && par1.z == 2 && par1.a == 4))
+    int bid = std::find(nuclei_names.begin(), nuclei_names.end(), this->beam) - nuclei_names.begin();
+    int tid = std::find(nuclei_names.begin(), nuclei_names.end(), this->target) - nuclei_names.begin();
+    if (bid == static_cast<int>(nuclei_names.size()) || tid == static_cast<int>(nuclei_names.size()))
     {
-        minv = sqrt(minv) - 5603.05149494286;
-        this->h1_dalpha_invaraiant_mass->Fill(minv);
+        throw std::invalid_argument("symbol is not valud.");
     }
 
-    if ((par1.z == 1 && par1.a == 1 && par2.z == 2 && par2.a == 4) ||
-        (par2.z == 1 && par2.a == 1 && par1.z == 2 && par1.a == 4))
-    {
-        minv = sqrt(minv) - 4669.149399085722;
-        this->h1_palpha_invaraiant_mass->Fill(minv);
-    }
-    if ((par1.z == 2 && par1.a == 4 && par2.z == 2 && par2.a == 4) ||
-        (par2.z == 2 && par2.a == 4 && par1.z == 2 && par1.a == 4))
-    {
-        minv = sqrt(minv) - 7456.894491337155;
-        this->h1_alphaalpha_invaraiant_mass->Fill(minv);
-    }
+    double m1 = this->nuclei_mass[bid];
+    double m2 = this->nuclei_mass[tid];
+    int beamA = std::stoi(this->beam.substr(2, this->beam.size() - 2));
+    double beam_ke = this->beamE * 1.0 * beamA;
+    double beam_energy_tot = beam_ke + m1;
+    double mom_beam = TMath::Sqrt(pow(beam_ke, 2.) + 2. * beam_ke * m1);
+    double gamma = beam_energy_tot / m1;
+    this->betacms = mom_beam / (gamma * m1 + m2);
+    this->beam_rapidity = 0.5 * TMath::Log((beam_energy_tot + mom_beam) / (beam_energy_tot - mom_beam));
 }
-void histograms::write(TFile *&outf)
+
+struct files_manager
 {
-    outf->cd();
-    this->h1_palpha_invaraiant_mass->Write();
-    this->h1_dalpha_invaraiant_mass->Write();
-    this->h1_alphaalpha_invaraiant_mass->Write();
-}
+
+    std::string input_dir;
+    std::vector<std::string> folders;
+    std::map<std::string, std::vector<std::string>> files;
+    void init(TChain *chain);
+};
+
+void files_manager::init(TChain *chain)
+{
+    for (auto &folder : this->folders)
+    {
+        fs::path folder_path = this->input_dir + folder;
+        for (const auto &f : fs::directory_iterator{folder_path})
+        {
+            this->files[folder].push_back(f.path());
+            fs::perms file_perms = fs::status(f.path()).permissions();
+
+            if ((file_perms & fs::perms::owner_read) != fs::perms::none)
+            {
+                chain->Add(f.path().c_str());
+            }
+        }
+    }
+
+    chain->SetBranchAddress("mEtrans", &structure.mEtrans);
+    chain->SetBranchAddress("mRunNumber", &structure.mRunNumber);
+    chain->SetBranchAddress("mEventNumber", &structure.mEventNumber);
+    chain->SetBranchAddress("m4PiMultInBall", &structure.m4PiMultInBall);
+    chain->SetBranchAddress("m4PiMultInFA", &structure.m4PiMultInFA);
+    chain->SetBranchAddress("m4PiMult", &structure.m4PiMult);
+    chain->SetBranchAddress("m4PiMultInHiRA", &structure.m4PiMultInHiRA);
+    chain->SetBranchAddress("HiRA_NParticles", &structure.HiRA_NParticles);
+
+    chain->SetBranchAddress("HiRA_Z", &structure.HiRA_Z[0]);
+    chain->SetBranchAddress("HiRA_A", &structure.HiRA_A[0]);
+    chain->SetBranchAddress("HiRA_Charge", &structure.HiRA_Charge[0]);
+    chain->SetBranchAddress("HiRA_Telescope", &structure.HiRA_Telescope[0]);
+    chain->SetBranchAddress("HiRA_CsI", &structure.HiRA_CsI[0]);
+    chain->SetBranchAddress("HiRA_EFStrip", &structure.HiRA_EFStrip[0]);
+    chain->SetBranchAddress("HiRA_EBStrip", &structure.HiRA_EBStrip[0]);
+
+    chain->SetBranchAddress("HiRA_Px", &structure.HiRA_Px[0]);
+    chain->SetBranchAddress("HiRA_Py", &structure.HiRA_Py[0]);
+    chain->SetBranchAddress("HiRA_Pz", &structure.HiRA_Pz[0]);
+    chain->SetBranchAddress("HiRA_PixelVectorX", &structure.HiRA_PixelVectorX[0]);
+    chain->SetBranchAddress("HiRA_PixelVectorY", &structure.HiRA_PixelVectorY[0]);
+    chain->SetBranchAddress("HiRA_PixelVectorZ", &structure.HiRA_PixelVectorZ[0]);
+
+    chain->SetBranchAddress("HiRA_EnLab", &structure.HiRA_EnLab[0]);
+    chain->SetBranchAddress("HiRA_EnLabSi", &structure.HiRA_EnLabSi[0]);
+    chain->SetBranchAddress("HiRA_EnLabLiSE", &structure.HiRA_EnLabLiSE[0]);
+    chain->SetBranchAddress("HiRA_EnLabCsI", &structure.HiRA_EnLabCsI[0]);
+    chain->SetBranchAddress("HiRA_EnLabPLCalib", &structure.HiRA_EnLabPLCalib[0]);
+    chain->SetBranchAddress("HiRA_EnInSi", &structure.HiRA_EnInSi[0]);
+
+    chain->SetBranchStatus("mEtrans", true);
+    chain->SetBranchStatus("mRunNumber", true);
+    chain->SetBranchStatus("mEventNumber", true);
+    chain->SetBranchStatus("m4PiMultInBall", true);
+    chain->SetBranchStatus("m4PiMultInFA", true);
+    chain->SetBranchStatus("m4PiMult", true);
+    chain->SetBranchStatus("m4PiMultInHiRA", true);
+    chain->SetBranchStatus("HiRA_NParticles", true);
+
+    chain->SetBranchStatus("HiRA_Z", true);
+    chain->SetBranchStatus("HiRA_A", true);
+    chain->SetBranchStatus("HiRA_Charge", true);
+    chain->SetBranchStatus("HiRA_Telescope", true);
+    chain->SetBranchStatus("HiRA_CsI", true);
+    chain->SetBranchStatus("HiRA_EFStrip", true);
+    chain->SetBranchStatus("HiRA_EBStrip", true);
+
+    chain->SetBranchStatus("HiRA_Px", true);
+    chain->SetBranchStatus("HiRA_Py", true);
+    chain->SetBranchStatus("HiRA_Pz", true);
+    chain->SetBranchStatus("HiRA_PixelVectorX", true);
+    chain->SetBranchStatus("HiRA_PixelVectorY", true);
+    chain->SetBranchStatus("HiRA_PixelVectorZ", true);
+
+    chain->SetBranchStatus("HiRA_EnLab", true);
+    chain->SetBranchStatus("HiRA_EnLabSi", true);
+    chain->SetBranchStatus("HiRA_EnLabLiSE", true);
+    chain->SetBranchStatus("HiRA_EnLabCsI", true);
+    chain->SetBranchStatus("HiRA_EnLabPLCalib", true);
+    chain->SetBranchStatus("HiRA_EnInSi", true);
+};

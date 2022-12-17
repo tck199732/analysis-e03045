@@ -9,7 +9,13 @@ void a()
     int nentries = chain->GetEntries();
     for (int i = 0; i < nentries; i++)
     {
-        chain->GetEntry(i);
+        std::cout << i << std::endl;
+        int nb = chain->GetEntry(i);
+        if (nb < 0)
+        {
+            break;
+        }
+
         TClonesArray *tracks = ev->Particles();
 
         int ntracks = tracks->GetEntries();
