@@ -12,6 +12,7 @@ struct eventcut
 struct histograms
 {
     TH2D *h2_multi_etrans;
+    TH2D *h2_theta_phi;                             // theta vs phi (lab)
     std::map<std::string, TH2D *> h2_pt_rapidity;   // pt per nucleon VS rapidity / beam rapidity (lab)
     std::map<std::string, TH2D *> h2_kinergy_theta; // ke per nucleon VS theta (cms)
 
@@ -131,10 +132,15 @@ void histograms::init()
     this->h2_multi_etrans = new TH2D("h2_multi_etrans", "", 40, 0, 40, 600, 0, 600);
     this->h2_multi_etrans->Sumw2();
     this->h2_multi_etrans->SetDirectory(0);
+
+    this->h2_theta_phi = new TH2D("h2_theta_phi", "", 600, 10, 70, 700, 20, 90);
+    this->h2_theta_phi->Sumw2();
+    this->h2_theta_phi->SetDirectory(0);
+
     for (auto &pn : this->particle_names)
     {
-        this->h2_pt_rapidity[pn] = new TH2D(("h2_pt_rapidity_" + pn).c_str(), "", 100, 0., 1., 800, 0., 800);
-        this->h2_kinergy_theta[pn] = new TH2D(("h2_kinergy_theta_" + pn).c_str(), "", 200, 0., 200, 800, 10, 70);
+        this->h2_pt_rapidity[pn] = new TH2D(("h2_pt_rapidity_" + pn).c_str(), "", 120, 0., 1.2, 500, 0., 500);
+        this->h2_kinergy_theta[pn] = new TH2D(("h2_kinergy_theta_" + pn).c_str(), "", 200, 0., 200, 900, 30, 120);
         this->h2_pt_rapidity[pn]->Sumw2();
         this->h2_pt_rapidity[pn]->SetDirectory(0);
         this->h2_kinergy_theta[pn]->Sumw2();
@@ -153,8 +159,18 @@ void histograms::fill(const event &ev)
 void histograms::fill(const particle &par)
 {
     std::string pn = par.name;
+    if (pn == "None")
+    {
+        return;
+    }
+    int pos = std::find(this->particle_names.begin(), this->particle_names.end(), pn) - this->particle_names.begin();
+    if (pos == static_cast<int>(this->particle_names.size()))
+    {
+        return;
+    }
     this->h2_pt_rapidity[pn]->Fill(par.rapidity_normed, par.pt / par.a);
     this->h2_kinergy_theta[pn]->Fill(par.encms / par.a, par.thetacms);
+    this->h2_theta_phi->Fill(par.theta, par.phi);
 }
 
 void histograms::normalize()
@@ -162,6 +178,7 @@ void histograms::normalize()
     double norm = this->h2_multi_etrans->GetEntries();
 
     this->h2_multi_etrans->Scale(1. / norm);
+    this->h2_theta_phi->Scale(1. / norm);
     for (auto &pn : this->particle_names)
     {
         this->h2_kinergy_theta[pn]->Scale(1. / norm);
@@ -174,6 +191,7 @@ void histograms::write(TFile *&outf)
     outf->cd();
 
     this->h2_multi_etrans->Write();
+    this->h2_theta_phi->Write();
     for (auto &pn : this->particle_names)
     {
         this->h2_kinergy_theta[pn]->Write();

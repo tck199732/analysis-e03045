@@ -14,7 +14,7 @@ output_directory.mkdir(exist_ok=True, parents=True)
 programs = dict()
 programs['main'] = {
     'ca40': ['Ca40', 'Ca40', '80', str(data_directory), str(pathlib.Path(output_directory, 'ca40.root')), '40Ca 40Ca_One'],
-    'ca48':  ['Ca48', 'Ca48', '80', str(data_directory), str(pathlib.Path(output_directory, 'ca40.root')), '48Ca 48Ca_One 48Ca_40t_One'],
+    'ca48':  ['Ca48', 'Ca48', '80', str(data_directory), str(pathlib.Path(output_directory, 'ca48.root')), '48Ca 48Ca_One 48Ca_40t_One'],
 }
 
 program_outputs = collections.defaultdict(dict)
@@ -41,18 +41,19 @@ def main():
             # print(program_errors[program][name])
 
 
-def compile(exe):
+def compile(cpp):
     '''
     exe : the pathlib.Path of the cpp main program
     '''
-    exe = pathlib.Path(exe)
+    cpp = pathlib.Path(cpp)
+    exe = pathlib.Path(cpp.parent, f'{cpp.stem}.exe')
     root_inc = subprocess.run('root-config --cflags --libs --glibs',
                               capture_output=True, shell=True, text=True, encoding='utf-8')
     root_inc = root_inc.stdout.strip()
     subprocess.run(
-        f'g++ {str(exe)} -o {exe.stem} -I{root_inc}', shell=True, text=True)
-    print(f'compiling {str(exe.stem)}')
-    return str(pathlib.Path(exe.parent, exe.stem))
+        f'g++ {str(cpp)} -o {exe} -I{root_inc}', shell=True, text=True)
+    print(f'compiling {str(exe)}')
+    return str(pathlib.Path(exe.parent, f'{exe}'))
 
 
 if __name__ == '__main__':

@@ -136,8 +136,11 @@ env_e03045
 *.d
 *.so
 
-# root files
-*.root
+# executables
+*.exe
+
+# result in root files
+result/*.root
 
 # vscode
 .vscode
