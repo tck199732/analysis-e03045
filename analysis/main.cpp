@@ -13,8 +13,9 @@ struct histograms
 {
     TH2D *h2_multi_etrans;
     TH2D *h2_theta_phi;                             // theta vs phi (lab)
+    TH2D *h2_pixel_vector;                          // mPixelVector transverse vs z
     std::map<std::string, TH2D *> h2_pt_rapidity;   // pt per nucleon VS rapidity / beam rapidity (lab)
-    std::map<std::string, TH2D *> h2_kinergy_theta; // ke per nucleon VS theta (cms)
+    std::map<std::string, TH2D *> h2_kinergy_theta; // ke per nucleon VS theta (lab)
 
     std::vector<std::string> particle_names = {"p", "d", "t", "3He", "4He"};
     void init();
@@ -137,10 +138,14 @@ void histograms::init()
     this->h2_theta_phi->Sumw2();
     this->h2_theta_phi->SetDirectory(0);
 
+    this->h2_pixel_vector = new TH2D("h2_pixel_vector", "", 100, 0., 1., 100, 0., 1.);
+    this->h2_pixel_vector->Sumw2();
+    this->h2_pixel_vector->SetDirectory(0);
+
     for (auto &pn : this->particle_names)
     {
         this->h2_pt_rapidity[pn] = new TH2D(("h2_pt_rapidity_" + pn).c_str(), "", 120, 0., 1.2, 500, 0., 500);
-        this->h2_kinergy_theta[pn] = new TH2D(("h2_kinergy_theta_" + pn).c_str(), "", 200, 0., 200, 900, 30, 120);
+        this->h2_kinergy_theta[pn] = new TH2D(("h2_kinergy_theta_" + pn).c_str(), "", 200, 0., 200, 900, 10, 100);
         this->h2_pt_rapidity[pn]->Sumw2();
         this->h2_pt_rapidity[pn]->SetDirectory(0);
         this->h2_kinergy_theta[pn]->Sumw2();
@@ -169,8 +174,11 @@ void histograms::fill(const particle &par)
         return;
     }
     this->h2_pt_rapidity[pn]->Fill(par.rapidity_normed, par.pt / par.a);
-    this->h2_kinergy_theta[pn]->Fill(par.encms / par.a, par.thetacms);
+    this->h2_kinergy_theta[pn]->Fill(par.enlab / par.a, par.theta);
     this->h2_theta_phi->Fill(par.theta, par.phi);
+
+    double pvt = TMath::Sqrt(pow(par.pvx, 2.) + pow(par.pvy, 2.));
+    this->h2_pixel_vector->Fill(pvt, par.pvz);
 }
 
 void histograms::normalize()
@@ -179,6 +187,7 @@ void histograms::normalize()
 
     this->h2_multi_etrans->Scale(1. / norm);
     this->h2_theta_phi->Scale(1. / norm);
+    this->h2_pixel_vector->Scale(1. / norm);
     for (auto &pn : this->particle_names)
     {
         this->h2_kinergy_theta[pn]->Scale(1. / norm);
@@ -192,6 +201,7 @@ void histograms::write(TFile *&outf)
 
     this->h2_multi_etrans->Write();
     this->h2_theta_phi->Write();
+    this->h2_pixel_vector->Write();
     for (auto &pn : this->particle_names)
     {
         this->h2_kinergy_theta[pn]->Write();
